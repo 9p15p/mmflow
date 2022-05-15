@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from .builder import OPERATORS
+from mmflow.datasets import visualize_flow
+import numpy as np
 
 
 def coords_grid(batch: int, xx: Tensor, yy: Tensor) -> Tensor:
@@ -115,7 +117,7 @@ class CorrLookup(nn.Module):
         yy = torch.arange(0, H, device=flow.device)
         grid = coords_grid(B, xx, yy) + flow  # shape N, 2, H, W
         grid = grid.permute(0, 2, 3, 1)  # shape N, H, W, 2
-
+        # visualize_flow(np.array(grid.detach().cpu())[0])
         dx = torch.linspace(
             -self.r, self.r, 2 * self.r + 1, device=flow.device)
         dy = torch.linspace(
@@ -125,13 +127,13 @@ class CorrLookup(nn.Module):
 
         out_corr_pyramid = []
         for i, corr in enumerate(corr_pyramid):
-            centroid_lvl = grid.reshape(B * H * W, 1, 1, 2) / 2**i
+            centroid_lvl = grid.reshape(B * H * W, 1, 1, 2) / 2 ** i
             coords_lvl = centroid_lvl + delta_lvl
 
-            corr = bilinear_sample(corr, coords_lvl, self.mode,
+            out_corr = bilinear_sample(corr, coords_lvl, self.mode,
                                    self.padding_mode, self.align_corners)
-            corr = corr.view(B, H, W, -1)
-            out_corr_pyramid.append(corr)
+            out_corr = out_corr.view(B, H, W, -1)
+            out_corr_pyramid.append(out_corr)
 
         out = torch.cat(out_corr_pyramid, dim=-1)
         return out.permute(0, 3, 1, 2).contiguous().float()
